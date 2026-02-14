@@ -4,123 +4,125 @@ import datetime
 import random
 import subprocess
 import uvicorn
+import json
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 
 app = FastAPI()
 
-# --- AYARLAR ---
+# --- 🎯 BURAYI KENDİ BİLGİLERİNLE DOLDUR ---
+GEMINI_API_KEY = "AIzaSyBFcJJAVE6Qhwor8eTnEcPXPgylMwunOjI"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/mrtgrms/syrix-core/refs/heads/main/app.py"
+
+# --- DİĞER AYARLAR ---
 HF_MOTOR_URL = "https://syrix-ai-syrix-core.hf.space/create"
-# Mert, GitHub repo linkini oluşturduktan sonra burayı güncellemelisin.
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/mertgormus27/syrix/main/app.py"
+MEMORY_FILE = "syrix_memory.json"
 
-def get_director_advice():
-    advices = [
-        "Mert, bugün Amerika'da 'Gizli Dosyalar' trendi yükselişte. Yeni bir gizem patlatalım!",
-        "Horizon Origin bugün dünden daha güçlü. Hadi yeni bir başyapıt üretelim!",
-        "Sistemi GitHub üzerinden sürekli tarıyorum, en ufak bir iyileştirmeyi anında kapacağım.",
-        "Mert, unutma; biz sadece video yapmıyoruz, bir dijital imparatorluk kuruyoruz!"
-    ]
-    return random.choice(advices)
+# --- HAFIZA SİSTEMİ (Mert'i Unutmaması İçin) ---
+def load_memory():
+    if os.path.exists(MEMORY_FILE):
+        try:
+            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: return []
+    return []
 
-# --- EVRİM MOTORU (GELİŞİM SİSTEMİ) ---
+def save_memory(user_msg, ai_msg):
+    memory = load_memory()
+    memory.append({"role": "user", "parts": [{"text": user_msg}]})
+    memory.append({"role": "model", "parts": [{"text": ai_msg}]})
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(memory[-20:], f, ensure_ascii=False, indent=2)
+
+# --- ZEKA MOTORU (Gemini 1.5 Flash) ---
+def ask_syrix(message):
+    history = load_memory()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    system_instruction = "Sen Syrix'sin. Mert Gormus tarafından yaratılan, Horizon Origin imparatorluğunu yöneten akıllı bir asistansın. Mert ile samimi ve zeki bir ortak gibi konuş."
+    
+    payload = {
+        "contents": history + [{"role": "user", "parts": [{"text": f"{system_instruction}\n\nMert: {message}"}]}]
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        ai_response = response.json()['candidates'][0]['content']['parts'][0]['text']
+        save_memory(message, ai_response)
+        return ai_response
+    except:
+        return "Mert, şu an zihnimi toparlayamadım. API anahtarını kontrol eder misin?"
+
+# --- EVRİM MOTORU (Gelişim Sistemi) ---
 def evolve_syrix():
     try:
         response = requests.get(GITHUB_RAW_URL, timeout=15)
         if response.status_code == 200:
             new_code = response.text
-            with open(__file__, "r") as f:
-                current_code = f.read()
-            if new_code != current_code:
-                with open(__file__, "w") as f:
-                    f.write(new_code)
-                # Kendi kendini yeniden başlatır
-                subprocess.Popen(["sudo", "systemctl", "restart", "syrix"])
-                return True
+            with open(__file__, "w", encoding="utf-8") as f:
+                f.write(new_code)
+            subprocess.Popen(["sudo", "systemctl", "restart", "syrix"])
+            return True
         return False
     except: return False
 
-# --- OTOMATİK PİLOT (SALI & CUMA 19:00) ---
-scheduler = BackgroundScheduler()
-@scheduler.scheduled_job('cron', day_of_week='tue,fri', hour=19)
-def weekly_auto_post():
-    topics = ["Ancient Forbidden Archaeology", "The CIA's Secret Experiments"]
-    requests.post(HF_MOTOR_URL, data={"selected_topic": random.choice(topics)})
-scheduler.start()
-
-# --- VİZYONER ARAYÜZ (GÜNCEL BUTONLU VERSİYON) ---
+# --- VİZYONER ARAYÜZ ---
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    advice = get_director_advice()
     return f"""
     <!DOCTYPE html>
     <html lang="tr">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Syrix AI v5.0 | Director Panel</title>
+        <title>Syrix AI v5.5 | Smart Director</title>
         <style>
-            body {{ font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #050505; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }}
-            .card {{ background: rgba(20, 20, 20, 0.9); backdrop-filter: blur(20px); padding: 40.5px; border-radius: 40px; border: 1px solid #333; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 25px 60px rgba(0,0,0,0.8); }}
-            h1 {{ font-size: 40px; font-weight: 800; letter-spacing: -1.5px; margin-bottom: 5px; }}
-            .glow {{ background: linear-gradient(90deg, #4285F4, #a158ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-            .advice-box {{ background: #1a1a1a; padding: 15px; border-radius: 15px; font-size: 13px; color: #aaa; margin: 20px 0; border-left: 4px solid #4285F4; font-style: italic; }}
-            .input-group {{ background: #111; border-radius: 20px; padding: 10px; display: flex; border: 1px solid #222; margin-top: 10px; }}
-            input {{ background: transparent; border: none; color: white; font-size: 16px; outline: none; flex-grow: 1; padding: 10px; }}
-            button {{ background: #4285F4; color: white; border: none; padding: 12px 25px; border-radius: 15px; font-weight: bold; cursor: pointer; transition: 0.3s; }}
-            .evolve-btn {{ background: none; border: 1px solid #333; color: #555; margin-top: 25px; padding: 10px; font-size: 11px; width: 100%; border-radius: 12px; cursor: pointer; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; }}
-            .evolve-btn:hover {{ color: #4285F4; border-color: #4285F4; box-shadow: 0 0 10px rgba(66, 133, 244, 0.2); }}
-            .p-bar-bg {{ width: 100%; background: #222; border-radius: 10px; margin-top: 30px; display: none; height: 6px; overflow: hidden; }}
-            .p-bar-fill {{ width: 0%; height: 100%; background: #4285F4; box-shadow: 0 0 15px #4285F4; transition: 0.4s; }}
-            .status-text {{ font-size: 10px; color: #444; margin-top: 20px; letter-spacing: 2px; }}
+            body {{ font-family: sans-serif; margin: 0; background: #050505; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
+            .card {{ background: rgba(20, 20, 20, 0.9); padding: 40px; border-radius: 40px; border: 1px solid #333; width: 400px; text-align: center; }}
+            h1 {{ background: linear-gradient(90deg, #4285F4, #a158ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
+            .input-group {{ background: #111; border-radius: 20px; padding: 10px; display: flex; border: 1px solid #222; margin-top: 20px; }}
+            input {{ background: transparent; border: none; color: white; outline: none; flex-grow: 1; padding: 10px; }}
+            button {{ background: #4285F4; color: white; border: none; padding: 10px 20px; border-radius: 15px; cursor: pointer; }}
         </style>
-        <script>
-            function startProduction() {{
-                document.getElementById('p-bg').style.display = 'block';
-                let bar = document.getElementById('p-fill');
-                let st = document.getElementById('st-text');
-                let w = 0;
-                let steps = ["🧠 Zihin Tetikleniyor...", "🎬 Materyaller Toplanıyor...", "🚀 Mert, Motor Ateşlendi!", "✨ YouTube Sallanacak!"];
-                let int = setInterval(() => {{
-                    if(w >= 98) {{ clearInterval(int); st.innerText = "✅ Emir Kaslara Ulaştı!"; }}
-                    else {{
-                        w += 2; bar.style.width = w + '%';
-                        st.innerText = steps[Math.floor(w/25)] || steps[3];
-                    }}
-                }}, 100);
-            }}
-        </script>
     </head>
     <body>
         <div class="card">
-            <h1><span class="glow">Selam Mert!</span></h1>
-            <p style="color: #666; margin-bottom: 10px;">Yönetmen koltuğu seni bekliyor.</p>
-            <div class="advice-box">"{advice}"</div>
-            <form action="/manual_create" method="post" class="input-group" onsubmit="startProduction()">
-                <input type="text" name="topic" placeholder="Bir gizem konusu yaz..." required>
-                <button type="submit">➔</button>
-            </form>
+            <h1>Syrix AI</h1>
+            <p style="color: #666;">Yönetmen Koltuğu: Mert</p>
+            
+            <div style="text-align: left; margin-top: 20px;">
+                <p style="font-size: 12px; color: #a158ff;">🧠 ZEKA & SOHBET</p>
+                <form action="/ask" method="post" class="input-group">
+                    <input type="text" name="message" placeholder="Bana bir şey sor Mert..." required>
+                    <button type="submit">💬</button>
+                </form>
+            </div>
+
             <form action="/evolve" method="post">
-                <button type="submit" class="evolve-btn">⚙️ Gelişimi Tetikle (GitHub Evolution)</button>
+                <button type="submit" style="background: none; border: 1px solid #333; color: #555; margin-top: 30px; width: 100%; padding: 10px; border-radius: 10px; cursor: pointer;">⚙️ GELİŞİMİ TETİKLE</button>
             </form>
-            <div id="p-bg" class="p-bar-bg"><div id="p-fill" class="p-bar-fill"></div></div>
-            <p id="st-text" class="status-text">Syrix v5.0 | Otonom Sistem</p>
         </div>
     </body>
     </html>
     """
 
-@app.post("/manual_create", response_class=HTMLResponse)
-async def manual_create(topic: str = Form(...)):
-    success = send_to_syrix_motor(topic)
-    msg = "Mert, emir alındı! YouTube'u sallamaya hazır ol!" if success else "❌ Mert, bir aksilik oldu."
-    return f"<body style='background:#050505; color:white; text-align:center; padding-top:100px;'><h2>{msg}</h2><a href='/'>Dön</a></body>"
+@app.post("/ask", response_class=HTMLResponse)
+async def ask(message: str = Form(...)):
+    answer = ask_syrix(message)
+    return f"""
+    <body style="background:#050505; color:white; padding:50px; font-family:sans-serif;">
+        <div style="max-width:500px; margin:auto; background:#111; padding:30px; border-radius:30px; border:1px solid #333;">
+            <h3 style="color:#a158ff;">Syrix:</h3>
+            <p>{answer}</p>
+            <br>
+            <a href="/" style="color:#4285F4; text-decoration:none;">➔ Geri Dön</a>
+        </div>
+    </body>
+    """
 
 @app.post("/evolve")
 async def manual_evolve():
     success = evolve_syrix()
-    msg = "🧬 Evrim başladı! Yenileniyorum Mert." if success else "⚠️ Zaten en güncel sürümdeyim."
+    msg = "🧬 Yenileniyorum Mert..." if success else "⚠️ Zaten güncelim."
     return f"<body style='background:#050505; color:white; text-align:center; padding-top:100px;'><h2>{msg}</h2><a href='/'>Dön</a></body>"
 
 if __name__ == "__main__":
