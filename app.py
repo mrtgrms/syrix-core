@@ -31,9 +31,10 @@ def save_memory(user_msg, ai_msg):
 
 def ask_syrix(message):
     history = load_memory()
-    # HATA ÇÖZÜMÜ: Model ismini kesin formatta güncelledim
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key={GEMINI_API_KEY}"
-    sys_prompt = "Sen Syrix'sin. Mert Gormus'un asistanısın. Gemini tarzında, şık ve vizyoner cevaplar ver."
+    # EN STABİL MODEL: 'gemini-1.5-flash' (Hata almamak için en geniş uyumlu versiyon)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    sys_prompt = "Sen Syrix'sin. Mert Gormus'un asistanısın. Horizon Origin ve otonom sistemler hakkında bilgilisin. Gemini gibi şık cevap ver."
     
     payload = {
         "contents": history + [{"role": "user", "parts": [{"text": f"{sys_prompt}\n\nMert: {message}"}]}]
@@ -46,20 +47,24 @@ def ask_syrix(message):
             answer = res_json['candidates'][0]['content']['parts'][0]['text']
             save_memory(message, answer)
             return answer
-        return f"Zekada bir sorun oluştu: {res_json.get('error', {}).get('message', 'Bağlantı kesildi')}"
+        return f"Google Hatası: {res_json.get('error', {}).get('message', 'Model baglantisi koptu.')}"
     except:
-        return "Bağlantı kurulamadı."
+        return "Sunucuya ulasilamiyor."
 
-# --- 🎨 TEK SAYFA GEMINI ARAYÜZÜ ---
+# --- 🎨 TAM GEMINI TASARIMI ---
 @app.get("/", response_class=HTMLResponse)
-async def index(msg: str = None, ans: str = None):
-    chat_html = ""
+async def index(request: Request, msg: str = None, ans: str = None):
+    chat_bubble = ""
     if msg and ans:
-        chat_html = f"""
-        <div style="margin-top:40px; text-align:left; max-width:700px; margin-left:auto; margin-right:auto;">
-            <p style="color:#888; font-size:14px;">Mert: {msg}</p>
-            <div style="color:#e3e3e3; font-size:16px; line-height:1.6; background:#1e1f20; padding:20px; border-radius:20px; border-left:4px solid #4285f4;">
-                <span style="color:#4285f4; font-size:20px;">✦</span> {ans}
+        chat_bubble = f"""
+        <div style="width:100%; max-width:700px; margin: 40px auto; text-align: left;">
+            <div style="background: #2b2c2f; padding: 12px 20px; border-radius: 20px; display: inline-block; float: right; color: white; margin-bottom: 20px;">
+                {msg}
+            </div>
+            <div style="clear: both;"></div>
+            <div style="display: flex; gap: 15px; align-items: flex-start; margin-bottom: 30px;">
+                <div style="color: #4285f4; font-size: 24px;">✦</div>
+                <div style="color: #e3e3e3; line-height: 1.6; font-size: 16px; white-space: pre-wrap;">{ans}</div>
             </div>
         </div>
         """
@@ -72,54 +77,50 @@ async def index(msg: str = None, ans: str = None):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Gemini | Syrix</title>
         <style>
-            body {{ background: #131314; color: #e3e3e3; font-family: 'Google Sans', sans-serif; margin: 0; padding: 20px; }}
-            .main-container {{ max-width: 800px; margin: 100px auto; text-align: center; }}
-            .greeting {{ font-size: clamp(32px, 7vw, 52px); font-weight: 500; margin-bottom: 40px; }}
-            .gradient-text {{ background: linear-gradient(90deg, #4285f4, #9b72f3, #d96570); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
+            body {{ background: #131314; color: #e3e3e3; font-family: 'Google Sans', sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }}
+            .content {{ flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }}
+            .greeting {{ font-size: clamp(30px, 6vw, 56px); font-weight: 500; margin-bottom: 40px; text-align: center; }}
+            .gradient {{ background: linear-gradient(90deg, #4285f4, #9b72f3, #d96570); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
             
-            .chat-container {{ background: #1e1f20; border-radius: 32px; padding: 10px 24px; display: flex; align-items: center; max-width: 700px; margin: 0 auto; border: 1px solid #333; }}
+            .input-box {{ background: #1e1f20; border-radius: 32px; padding: 10px 24px; display: flex; align-items: center; width: 100%; max-width: 700px; transition: 0.2s; }}
             input {{ background: transparent; border: none; color: white; flex-grow: 1; font-size: 16px; outline: none; padding: 15px; }}
-            button {{ background:none; border:none; color:#4285f4; font-size:24px; cursor:pointer; }}
             
-            .tools {{ display: flex; gap: 10px; justify-content: center; margin-top: 25px; flex-wrap: wrap; }}
-            .tool-btn {{ background: #1e1f20; border: 1px solid #333; padding: 10px 18px; border-radius: 20px; font-size: 13px; color: #aaa; cursor: pointer; transition: 0.2s; }}
-            .tool-btn:hover {{ background: #333; }}
-            
-            .footer {{ position: fixed; bottom: 15px; width: 100%; left: 0; text-align: center; opacity: 0.2; font-size: 10px; }}
+            .tools {{ display: flex; gap: 10px; margin-top: 25px; flex-wrap: wrap; justify-content: center; }}
+            .tool {{ background: #1e1f20; border: 1px solid #333; padding: 12px 20px; border-radius: 20px; font-size: 13px; color: #aaa; cursor: pointer; }}
+            .tool:hover {{ background: #333; color: white; }}
         </style>
     </head>
     <body>
-        <div class="main-container">
-            <div class="greeting">
-                Merhaba Mert<br>
-                <span class="gradient-text">Nereden başlayalım?</span>
-            </div>
+        <div class="content">
+            {f'<div class="greeting">Merhaba Mert,<br><span class="gradient">Nereden başlayalım?</span></div>' if not msg else ''}
             
-            <form action="/ask" method="post" class="chat-container">
-                <input type="text" name="message" placeholder="Gemini'ye sorun" required autocomplete="off">
-                <button type="submit">➔</button>
+            {chat_bubble}
+
+            <form action="/ask" method="post" style="width: 100%; display: flex; justify-content: center; margin-top: 20px;">
+                <div class="input-box">
+                    <input type="text" name="message" placeholder="Gemini 3'e sorun" required autocomplete="off">
+                    <button type="submit" style="background:none; border:none; color:#4285f4; font-size:24px; cursor:pointer;">➔</button>
+                </div>
             </form>
 
             <div class="tools">
-                <div class="tool-btn">✨ Resim Oluştur</div>
-                <div class="tool-btn">🎬 Video oluşturun</div>
-                <div class="tool-btn">💡 Ne istiyorsanız yazın</div>
+                <div class="tool">✨ Resim Oluştur</div>
+                <div class="tool">🎬 Video oluşturun</div>
+                <div class="tool">💡 Proje Analizi</div>
             </div>
-
-            {chat_html}
         </div>
-
-        <form action="/evolve" method="post" class="footer">
-            <button type="submit" style="background:none; border:none; color:inherit; font-size:inherit; cursor:pointer;">SYRIX_PURE_GEMINI_v6.9</button>
+        
+        <form action="/evolve" method="post" style="padding: 20px; text-align: center; opacity: 0.2;">
+            <button type="submit" style="background:none; border:none; color:white; font-size:10px; cursor:pointer;">SYRIX_PRO_v7.0</button>
         </form>
     </body>
     </html>
     """
 
-@app.post("/ask")
+@app.post("/ask", response_class=HTMLResponse)
 async def ask(message: str = Form(...)):
     answer = ask_syrix(message)
-    return await index(msg=message, ans=answer)
+    return await index(Request, msg=message, ans=answer)
 
 @app.post("/evolve")
 async def evolve():
@@ -128,8 +129,8 @@ async def evolve():
         if r.status_code == 200:
             with open(__file__, "w", encoding="utf-8") as f: f.write(r.text)
             subprocess.Popen(["sudo", "systemctl", "restart", "syrix"])
-            return "Sistem Evrimleşti."
-    except: return "GitHub Hatası."
+            return "Sistem Guncellendi."
+    except: return "Baglanti Hatasi."
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
